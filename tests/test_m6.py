@@ -9,7 +9,8 @@ def test_real_sample_totals_exact(result):
     rows=result["stages"][5]["rows"];m=result["stages"][5]["metrics"]
     assert sum((Decimal(r["difference"]) for r in rows),Decimal(0))==Decimal(m["expected_total"])-Decimal(m["reported_total"])
 def test_empty_reconcile():
-    r=evaluate([],{});assert r["metrics"]["balanced"] is True and r["metrics"]["expected_total"]=="0"
+    r=evaluate([],{});assert r["metrics"]["balanced"] is True and r["metrics"]["expected_total"]=="0.00"
+    assert r["metrics"]["fx_gap_total"]=="0.00" and r["metrics"]["adjustment_total"]=="0.00"
 def test_overlap_is_rejected():
     import pytest
     from app.errors import DomainError

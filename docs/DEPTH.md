@@ -32,10 +32,20 @@
 | TRAP-12 | DST自然日 | 固定24小时 | 按当地午夜切片 | `app/modules/m5_timeliness/rules.py` | `tests/test_m5.py::test_dst_actual_elapsed_hours` |
 | TRAP-13 | 迟到妥投补传 | 按上传时间赔付 | 发生时间重建 | `app/modules/m4_paths/rules.py` | `tests/test_m4.py::test_late_upload_event_time_decides` |
 | TRAP-23 | 假日端点 | 误算全天 | 当地日半开切段 | `app/modules/m5_timeliness/rules.py` | `tests/test_m5.py::test_holiday_full_day_stops` |
+| TRAP-30 | 结算日汇率申报 | 按月底汇率入账产生汇差 | 合同基准日锁定，汇差单列不重复计差 | `app/modules/m6_compensation/rules.py` | `tests/test_fx.py::test_fx_gap_is_settlement_minus_contract_view` |
+| TRAP-31 | 权威表与默认表混用 | 部分覆盖时静默回退内置汇率 | 传参即权威，缺汇率整批失败 | `app/fx.py` | `tests/test_fx.py::test_supplied_table_is_authoritative_not_merged` |
+| TRAP-32 | 补传重试重复冲销 | 同笔补传登记两次把差额冲两遍 | 台账唯一约束+分录去重令牌 | `app/store.py` | `tests/test_reconcile_service.py::test_retry_same_adjustment_is_deduplicated` |
+| TRAP-33 | 补传改额抹掉原值 | 新金额覆盖原始扫描与旧金额 | 只追加台账，旧金额随分录保留 | `app/reconcile.py` | `tests/test_reconcile_service.py::test_original_scan_and_old_amount_never_deleted` |
+| TRAP-34 | 切换失败留下半成品 | 缺汇率仍落库部分重算结果 | 内存试算成功才追加结论，失败回滚上一可用结论 | `app/reconcile.py` | `tests/test_reconcile_service.py::test_failed_switch_rolls_back_to_last_good_conclusion` |
+| TRAP-35 | 重算丢失原始输入 | 只存摘要无法复现同输入 | raw_inputs表随批次保存原始字节 | `app/store.py` | `tests/test_reconcile_service.py::test_raw_bytes_persist_for_recalculation` |
 
 ## 对账规则
 
 输入原始逻辑行=最终采纳来源行+隔离来源行+重复行+空白行+分段表头。派生记录用_sources保存完整来源，因此分组不丢行。业务预期合计与上游申报合计之差等于逐行差异之和。结果按输入摘要、规则版本及参数产生唯一批次，事务写入；同源重跑只复用已有批次。
+
+## 汇差与补传裁决（每票唯一结论）
+
+合同赔付以人民币计赔并锁定合同基准日汇率；承运商外币申报按结算日汇率折算，两口径之差记为汇差fx_gap，只解释不重计。补传仅在改变金额时产生补传差额，按补传批次日汇率对新旧金额之差重算；adjustments分录逐笔保留scan_id、批次日、批次汇率、old_amount→new_amount与来源。最终对账申报final_reported_cny=合同口径申报+补传差额合计，每票只输出一条status。汇率切换先在内存对同一原始输入整批试算，成功才追加fx_conclusions并保存新批次；任何一票缺汇率即409回滚，页面与归档始终读取最近一次可用结论。补传台账与结论台账分离：重算回滚只撤回结论，adjustments里的补传证据仍只追加保留，待汇率补齐后的下一次成功重算自动纳入，因此不会因临时失败丢失补传登记。
 
 ## 已知不覆盖
 

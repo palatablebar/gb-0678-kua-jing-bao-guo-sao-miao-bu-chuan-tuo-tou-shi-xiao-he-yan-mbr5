@@ -1,1 +1,81 @@
-{% extends 'base.html' %}{% block panels %}<div class="grid"><section class="panel wide"><div class="panel__head"><h2>{{modules[index][1]}} · 证据</h2><input id="search-scans" placeholder="包裹号 / 扫描号" aria-label="筛选包裹"></div><div class="table-scroll"><table class="scans"><thead><tr><th>源行</th>{% for key in columns %}<th>{{labels.get(key,key)}}</th>{% endfor %}</tr></thead><tbody id="scan-rows">{% for row in rows %}<tr><td>{{row.get('_sources',[])|join(',')}}</td>{% for key in columns %}<td title="{{row.get(key,'')}}">{{row.get(key,'—')}}</td>{% endfor %}</tr>{% else %}<tr><td class="empty">选择扫描批后重建。</td></tr>{% endfor %}</tbody></table></div></section><div class="stack"><section class="panel"><div class="panel__head"><h2>时效检查</h2><span>{{index+1}} / 7</span></div><div class="panel__body">{% for key,value in stage.metrics.items() %}<div class="metric"><span>{{labels.get(key,key)}}</span><b>{{value}}</b></div>{% endfor %}</div></section><section class="panel"><div class="panel__head"><h2>异常扫描</h2><span>{{stage.cumulative_quarantine|length}}</span></div><div class="panel__body">{% for q in stage.cumulative_quarantine %}<div class="reason"><b>{{q.reason}}</b>行 {{q.get('_line','—')}} · {{q.detail}}</div>{% else %}<div class="empty">暂无异常扫描。</div>{% endfor %}</div></section></div><section class="panel wide"><div class="panel__head"><h2>妥投发生时刻</h2><span>UTC</span></div><div class="panel__body timeline">{% for p in run.stages[3].rows[:4] %}<div><strong>{{p.parcel}}</strong> · {{p.scan_count}} 扫描<time>{{p.accepted_at}} → {{p.delivered_at or '待妥投'}}</time></div>{% endfor %}</div></section></div>{% endblock %}
+{% extends 'base.html' %}
+{% block panels %}
+<div class="grid">
+  <section class="panel wide">
+    <div class="panel__head">
+      <h2>{{modules[index][1]}} · 每票唯一对账</h2>
+      <input id="search-scans" placeholder="包裹号 / 扫描号" aria-label="筛选包裹">
+    </div>
+    <div class="panel__body fx-note">
+      <p><b>汇率日口径</b>：合同赔付以人民币计赔，锁定<b>合同基准日</b>（默认妥投日）汇率；承运商按<b>结算汇率日</b>用外币申报。
+        汇差 = 申报额 ×（结算日汇率 − 基准日汇率），只解释差异、不重复计入对账差额。</p>
+      <p><b>补传口径</b>：补传改变金额时按新批次汇率重算补传差额；原始申报额与原始扫描保留不删，同一补传重试不重复冲销。</p>
+    </div>
+    <div class="table-scroll">
+      <table class="scans">
+        <thead><tr><th>源行</th>{% for key in columns %}<th>{{labels.get(key,key)}}</th>{% endfor %}</tr></thead>
+        <tbody id="scan-rows">
+        {% for row in rows %}
+          <tr>
+            <td>{{row.get('_sources',[])|join(',')}}</td>
+            {% for key in columns %}
+            <td title="{{row.get(key,'')}}">
+              {% if key=='adjustments' and row.adjustments %}
+                {% for a in row.adjustments %}
+                  <span class="tag">{{a.source}} · {{a.scan_id}} · {{a.batch_date}} @ {{a.batch_rate}}：{{a.old_amount}}→{{a.new_amount}}（{{a.adjustment}}）</span><br>
+                {% endfor %}
+              {% elif key=='adjustments' %}—
+              {% else %}{{row.get(key,'—')}}{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+        {% else %}
+          <tr><td class="empty">选择扫描批后重建。</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel__head"><h2>对账指标</h2><span>{{index+1}} / 7</span></div>
+      <div class="panel__body">
+        {% for key,value in stage.metrics.items() %}
+        <div class="metric"><span>{{labels.get(key,key)}}</span><b>{{value}}</b></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>汇率切换 / 补传登记</h2><span>失败自动回滚</span></div>
+      <div class="panel__body controls">
+        <label class="field">合同基准日覆盖（可选）
+          <input id="fx-contract-date" type="date" aria-label="合同基准日">
+        </label>
+        <label class="field">权威汇率表 JSON（留空恢复内置默认）
+          <textarea id="fx-rates" rows="4" placeholder='{"JPY":{"2026-11-04":"0.0478"}}'></textarea>
+        </label>
+        <button class="primary" id="fx-switch">按新汇率重算</button>
+        <hr>
+        <label class="field">包裹号<input id="adj-parcel" placeholder="1003"></label>
+        <label class="field">补传扫描号<input id="adj-scan" placeholder="0124"></label>
+        <label class="field">新批次汇率日<input id="adj-batch-date" type="date"></label>
+        <label class="field">新申报金额（外币原值）<input id="adj-amount" placeholder="800"></label>
+        <label class="field">币种<input id="adj-currency" placeholder="JPY"></label>
+        <button id="adj-submit">登记补传并重算</button>
+        <div id="fx-message" class="fx-message" role="status"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>异常扫描</h2><span>{{stage.cumulative_quarantine|length}}</span></div>
+      <div class="panel__body">
+        {% for q in stage.cumulative_quarantine %}
+        <div class="reason"><b>{{q.reason}}</b>行 {{q.get('_line','—')}} · {{q.detail}}</div>
+        {% else %}<div class="empty">暂无异常扫描。</div>{% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

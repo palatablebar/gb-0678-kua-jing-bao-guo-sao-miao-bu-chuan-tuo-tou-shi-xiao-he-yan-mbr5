@@ -5,5 +5,8 @@ DATA_DIR=Path(os.environ.get("DATA_DIR", "/tmp/parcelsla"))
 TITLE='跨境包裹扫描补传与妥投时效核验'
 SHORT='parcelsla'
 COLUMNS=['scan_id', 'parcel', 'node', 'event_time', 'received_time', 'destination', 'promised_hours', 'declared_value', 'reported', 'note']
+# 可选扩展列：承运商申报币种与结算日，存在时参与外币折算，缺省按人民币/妥投日
+OPTIONAL_COLUMNS=['reported_currency', 'settlement_date']
+ALL_COLUMNS=COLUMNS[:9]+OPTIONAL_COLUMNS+['note']
 MODULES=[('scans', '扫描采信'), ('nodes', '节点映射'), ('timezones', '时区归整'), ('paths', '路径裁决'), ('timeliness', '时效计算'), ('compensation', '赔付对账'), ('archives', '批次归档')]
-RULE_VERSION="2026.11.17-r1"
+RULE_VERSION="2026.11.20-r1"

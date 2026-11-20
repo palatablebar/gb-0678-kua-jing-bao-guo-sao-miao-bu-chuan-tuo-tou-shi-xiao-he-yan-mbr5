@@ -18,12 +18,13 @@ docker compose exec -T app pytest -q
 - 3. 时区归整：`/timezones`，`/api/timezones`。
 - 4. 路径裁决：`/paths`，`/api/paths`。
 - 5. 时效计算：`/timeliness`，`/api/timeliness`。
-- 6. 赔付对账：`/compensation`，`/api/compensation`。
+- 6. 赔付对账：`/compensation`，`/api/compensation`；汇率切换 `POST /api/runs/<id>/fx`，补传登记 `GET/POST /api/runs/<id>/adjustments`。
 - 7. 批次归档：`/archives`，`/api/archives`。
 
 ## 核心规则
 
 以事件发生时刻重建路径，补传不改变既有妥投时间；承诺时钟按目的地节假日停表。
+赔付以人民币计赔并锁定合同基准日汇率；承运商按结算日汇率外币申报，汇差单列解释。补传改变金额时按新批次汇率重算补传差额，原始扫描与旧金额只追加不改写，同一补传重试不重复冲销；汇率切换失败整批回滚上一可用结论。
 
 ## 演示
 
@@ -34,7 +35,7 @@ docker compose exec -T app pytest -q
 
 ## 输入与输出
 
-输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。
+输入列见 `docs/DATA-DICTIONARY.md`。项目包含dirty.csv、clean.csv、legacy.csv、fx.csv，统一走实际导入路径。上传限制4MB，拒绝不带时区的时间。业务键按字符串保留，Decimal参与计算，空值不会当零。fx.csv为外币申报样例（JPY/USD），演示合同基准日锁定、汇差单列与补传批次汇率重算。
 
 `POST /api/runs` 接收sample或csv；`GET /api/runs`返回历史批次；`POST /api/runs/<id>/review`需要version与decision；`GET /api/runs/<id>/archive`返回唯一证据导出。
 

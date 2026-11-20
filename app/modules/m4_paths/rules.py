@@ -17,8 +17,18 @@ def evaluate(rows,context):
         accepts=[e for e in valid if e["node"]=="ACCEPT"]
         if not accepts:
             bad.extend(reject(e,"MISSING_ACCEPT","缺少收件扫描") for e in valid);continue
-        delivery=next((e for e in valid if e["node"]=="DELIVERED"),None)
-        first=accepts[0]
-        source_lines=[line for e in valid for line in sources(e)]
-        good.append({**first,"_sources":source_lines,"accepted_at":first["event_utc"],"delivered_at":delivery["event_utc"] if delivery else None,"delivery_uploaded_at":delivery["received_utc"] if delivery else None,"scan_count":len(valid),"path":" → ".join(e["node"] for e in valid),"reported":delivery["reported"] if delivery else first["reported"]})
+        delivery = next((e for e in valid if e["node"] == "DELIVERED"), None)
+        first = accepts[0]
+        source_lines = [line for e in valid for line in sources(e)]
+        # 申报币种与结算日随妥投扫描走；缺失时沿用首条扫描（M6 再按缺省口径兜底）
+        carrier = delivery or first
+        good.append({**first, "_sources": source_lines,
+                     "accepted_at": first["event_utc"],
+                     "delivered_at": delivery["event_utc"] if delivery else None,
+                     "delivery_uploaded_at": delivery["received_utc"] if delivery else None,
+                     "scan_count": len(valid),
+                     "path": " → ".join(e["node"] for e in valid),
+                     "reported": carrier["reported"],
+                     "reported_currency": carrier.get("reported_currency", "CNY") or "CNY",
+                     "settlement_date": carrier.get("settlement_date", "") or ""})
     return {"rows":good,"quarantine":bad,"metrics":{"parcels":len(good),"delivered":sum(r["delivered_at"] is not None for r in good),"path_errors":len(bad)}}
